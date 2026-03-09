@@ -12,7 +12,8 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev:link": "npm link matterbridge"
   },
   "keywords": [
     "matterbridge",
@@ -31,8 +32,7 @@
   "dependencies": {
     "ws": "^8.18.0"
   },
-"devDependencies": {
-    "matterbridge": "^3.6.0",
+  "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.0",
     "eslint": "^9.0.0",
