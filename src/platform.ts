@@ -233,7 +233,11 @@ export class ZWaveJSPlatform extends MatterbridgeDynamicPlatform {
   }
 
   private nodeHasCommandClass(node: ZWaveNode, commandClass: number): boolean {
-    return node.endpoints.some((ep) => ep.commandClasses.some((cc) => cc.id === commandClass));
+    // Check values first (endpoint.commandClasses may be empty)
+    for (const val of Object.values(node.values)) {
+      if (val.commandClass === commandClass) return true;
+    }
+    return node.endpoints.some((ep) => (ep.commandClasses ?? []).some((cc) => cc.id === commandClass));
   }
 
   private findNodeValue(node: ZWaveNode, commandClass: number, property: string, endpointIndex: number): unknown {
