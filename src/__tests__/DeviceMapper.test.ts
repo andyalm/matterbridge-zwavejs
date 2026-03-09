@@ -33,23 +33,23 @@ function makeEndpoint(ccIds: number[], index = 0) {
 }
 
 describe('mapNode', () => {
-  it('maps Binary Switch to onOffLight', () => {
+  it('maps Binary Switch to onOffOutlet by default', () => {
     const node = makeNode({
       endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
-    });
-    const devices = mapNode(node);
-    expect(devices).toHaveLength(1);
-    expect(devices[0].deviceType).toBe(onOffLight);
-  });
-
-  it('maps Binary Switch to onOffOutlet when device label contains "outlet"', () => {
-    const node = makeNode({
-      endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
-      deviceConfig: { manufacturer: 'Test', label: 'Smart Outlet', description: '' },
     });
     const devices = mapNode(node);
     expect(devices).toHaveLength(1);
     expect(devices[0].deviceType).toBe(onOffOutlet);
+  });
+
+  it('maps Binary Switch to onOffLight when device label contains "light"', () => {
+    const node = makeNode({
+      endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
+      deviceConfig: { manufacturer: 'Test', label: 'Smart Light Switch', description: '' },
+    });
+    const devices = mapNode(node);
+    expect(devices).toHaveLength(1);
+    expect(devices[0].deviceType).toBe(onOffLight);
   });
 
   it('maps Multilevel Switch to dimmableLight', () => {

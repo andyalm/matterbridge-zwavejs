@@ -71,12 +71,13 @@ function mapEndpoint(
       endpointIndex,
     });
   } else if (ccIds.has(CommandClass.BinarySwitch)) {
-    // Binary Switch → On/Off Light or Outlet
-    // Use outlet if the generic device class suggests it, otherwise default to light
-    const isOutlet = isLikelyOutlet(node);
+    // Binary Switch → On/Off Outlet or Light
+    // Default to outlet since Matter controllers (e.g. Google Home) let the user
+    // change the type for outlets, but not for lights.
+    const isLight = isLikelyLight(node);
     devices.push({
-      deviceType: isOutlet ? onOffOutlet : onOffLight,
-      label: isOutlet ? 'Outlet' : 'Light',
+      deviceType: isLight ? onOffLight : onOffOutlet,
+      label: isLight ? 'Light' : 'Outlet',
       endpointIndex,
     });
   }
@@ -183,15 +184,16 @@ function mapNotifications(node: ZWaveNode, endpointIndex: number): MappedDevice[
   return devices;
 }
 
-/** Heuristic: determine if a binary switch node is likely an outlet/plug rather than a light. */
-function isLikelyOutlet(node: ZWaveNode): boolean {
+/** Heuristic: determine if a binary switch node is likely a light rather than an outlet/plug. */
+function isLikelyLight(node: ZWaveNode): boolean {
   const label = node.deviceConfig?.label?.toLowerCase() ?? '';
   const desc = node.deviceConfig?.description?.toLowerCase() ?? '';
   const combined = `${label} ${desc}`;
   return (
-    combined.includes('outlet') ||
-    combined.includes('plug') ||
-    combined.includes('socket') ||
-    combined.includes('power strip')
+    combined.includes('light') ||
+    combined.includes('lamp') ||
+    combined.includes('bulb') ||
+    combined.includes('dimmer') ||
+    combined.includes('switch') // wall switches typically control lights
   );
 }
