@@ -129,13 +129,15 @@ export class ZWaveJSPlatform extends MatterbridgeDynamicPlatform {
     this.log.info(`Node ${node.nodeId} (${nodeName}): mapping to ${mappedDevices.length} Matter device(s)`);
 
     for (const mapping of mappedDevices) {
-      await this.registerMappedDevice(node, mapping, nodeName);
+      await this.registerMappedDevice(node, mapping, nodeName, mappedDevices.length);
     }
   }
 
-  private async registerMappedDevice(node: ZWaveNode, mapping: MappedDevice, nodeName: string): Promise<void> {
+  private async registerMappedDevice(node: ZWaveNode, mapping: MappedDevice, nodeName: string, deviceCount: number): Promise<void> {
     const key = `${node.nodeId}-${mapping.endpointIndex}-${mapping.label}`;
-    const baseDeviceName = mapping.label !== nodeName ? `${nodeName} ${mapping.label}` : nodeName;
+    // Use the Z-Wave node name directly when there's only one mapped device;
+    // only append the mapping label when multiple devices share the same node name.
+    const baseDeviceName = deviceCount > 1 ? `${nodeName} ${mapping.label}` : nodeName;
     // Append endpoint index for multi-endpoint nodes to ensure unique names
     const deviceName = mapping.endpointIndex > 0 ? `${baseDeviceName} ${mapping.endpointIndex}` : baseDeviceName;
     const serialNumber = `zwave-${node.nodeId}-${mapping.endpointIndex}-${mapping.label.toLowerCase().replace(/\s+/g, '-')}`;
