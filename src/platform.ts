@@ -135,7 +135,9 @@ export class ZWaveJSPlatform extends MatterbridgeDynamicPlatform {
 
   private async registerMappedDevice(node: ZWaveNode, mapping: MappedDevice, nodeName: string): Promise<void> {
     const key = `${node.nodeId}-${mapping.endpointIndex}-${mapping.label}`;
-    const deviceName = mapping.label !== nodeName ? `${nodeName} ${mapping.label}` : nodeName;
+    const baseDeviceName = mapping.label !== nodeName ? `${nodeName} ${mapping.label}` : nodeName;
+    // Append endpoint index for multi-endpoint nodes to ensure unique names
+    const deviceName = mapping.endpointIndex > 0 ? `${baseDeviceName} ${mapping.endpointIndex}` : baseDeviceName;
     const serialNumber = `zwave-${node.nodeId}-${mapping.endpointIndex}-${mapping.label.toLowerCase().replace(/\s+/g, '-')}`;
     const uniqueId = serialNumber;
 
@@ -167,10 +169,12 @@ export class ZWaveJSPlatform extends MatterbridgeDynamicPlatform {
 
     // Create the appropriate handler
     const handler = this.createHandler(endpoint, mapping, node);
-    handler.setup();
 
-    // Register with matterbridge
+    // Register with matterbridge BEFORE setting initial state (endpoint must be active)
     await super.registerDevice(endpoint);
+
+    // Now set initial state on the active endpoint
+    handler.setup();
 
     this.devices.set(key, { endpoint, mapping, handler });
     this.log.info(`Registered: ${deviceName} (${mapping.deviceType.name}) [${uniqueId}]`);
