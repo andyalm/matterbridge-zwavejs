@@ -34,6 +34,15 @@ The plugin config schema file must be named `matterbridge-zwavejs.schema.json` i
 - WebSocket server (zwave-js-server) runs on port **3000**
 - Web UI runs on port 8091 (not used by this plugin)
 
+## Before Committing — ALWAYS
+
+Run these commands before every commit to ensure code is formatted and lint-clean:
+
+```bash
+npm run format      # Auto-format with Prettier
+npm run lint:fix    # Auto-fix ESLint issues
+```
+
 ## Build & Test (Local Development)
 
 ```bash

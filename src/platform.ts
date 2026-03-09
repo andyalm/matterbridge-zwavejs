@@ -97,7 +97,9 @@ export class ZWaveJSPlatform extends MatterbridgeDynamicPlatform {
         }
       }
       const ccList = [...ccIdSet].map((id) => `0x${id.toString(16)}`);
-      this.log.info(`Node ${nodeId} (${nodeName}): ready=${node.ready}, endpoints=${endpointCount}, values=${valueCount}, CCs=[${ccList.join(', ')}]`);
+      this.log.info(
+        `Node ${nodeId} (${nodeName}): ready=${node.ready}, endpoints=${endpointCount}, values=${valueCount}, CCs=[${ccList.join(', ')}]`,
+      );
 
       // Skip the controller node (node 1 is typically the controller)
       if (nodeId === 1) {
@@ -133,7 +135,12 @@ export class ZWaveJSPlatform extends MatterbridgeDynamicPlatform {
     }
   }
 
-  private async registerMappedDevice(node: ZWaveNode, mapping: MappedDevice, nodeName: string, deviceCount: number): Promise<void> {
+  private async registerMappedDevice(
+    node: ZWaveNode,
+    mapping: MappedDevice,
+    nodeName: string,
+    deviceCount: number,
+  ): Promise<void> {
     const key = `${node.nodeId}-${mapping.endpointIndex}-${mapping.label}`;
     // Use the Z-Wave node name directly when there's only one mapped device;
     // only append the mapping label when multiple devices share the same node name.

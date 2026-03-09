@@ -9,6 +9,7 @@
     "build": "tsc",
     "watch": "tsc --watch",
     "lint": "eslint src/",
+    "lint:fix": "eslint --fix src/",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "test": "vitest run",

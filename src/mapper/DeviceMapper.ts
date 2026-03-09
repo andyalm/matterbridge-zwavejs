@@ -189,9 +189,5 @@ function isLikelyLight(node: ZWaveNode): boolean {
   const label = node.deviceConfig?.label?.toLowerCase() ?? '';
   const desc = node.deviceConfig?.description?.toLowerCase() ?? '';
   const combined = `${label} ${desc}`;
-  return (
-    combined.includes('light') ||
-    combined.includes('lamp') ||
-    combined.includes('bulb')
-  );
+  return combined.includes('light') || combined.includes('lamp') || combined.includes('bulb');
 }
