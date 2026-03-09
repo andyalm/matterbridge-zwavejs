@@ -31,7 +31,11 @@
   "dependencies": {
     "ws": "^8.18.0"
   },
+  "peerDependencies": {
+    "matterbridge": ">=3.6.0"
+  },
   "devDependencies": {
+    "matterbridge": "^3.6.0",
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.0",
     "eslint": "^9.0.0",
