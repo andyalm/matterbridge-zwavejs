@@ -30,10 +30,25 @@ export interface MappedDevice {
 export function mapNode(node: ZWaveNode): MappedDevice[] {
   const devices: MappedDevice[] = [];
 
+  // Build a set of CC IDs per endpoint from node.values, since
+  // endpoint.commandClasses may be empty in the zwave-js-server response.
+  const ccIdsByEndpoint = new Map<number, Set<number>>();
+  for (const val of Object.values(node.values)) {
+    let ccIds = ccIdsByEndpoint.get(val.endpoint);
+    if (!ccIds) {
+      ccIds = new Set<number>();
+      ccIdsByEndpoint.set(val.endpoint, ccIds);
+    }
+    ccIds.add(val.commandClass);
+  }
+
   for (const endpoint of node.endpoints) {
-    const commandClasses = endpoint.commandClasses ?? [];
-    const ccIds = new Set(commandClasses.map((cc) => cc.id));
-    const endpointDevices = mapEndpoint(node, endpoint.index, ccIds, commandClasses);
+    // Merge CCs from endpoint.commandClasses (if present) and from values
+    const ccIds = ccIdsByEndpoint.get(endpoint.index) ?? new Set<number>();
+    for (const cc of endpoint.commandClasses ?? []) {
+      ccIds.add(cc.id);
+    }
+    const endpointDevices = mapEndpoint(node, endpoint.index, ccIds, endpoint.commandClasses ?? []);
     devices.push(...endpointDevices);
   }
 

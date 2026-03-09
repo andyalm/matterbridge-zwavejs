@@ -86,9 +86,17 @@ export class ZWaveJSPlatform extends MatterbridgeDynamicPlatform {
       const nodeName = node.name ?? node.deviceConfig?.label ?? `Node ${nodeId}`;
       const endpointCount = node.endpoints?.length ?? 0;
       const valueCount = node.values ? Object.keys(node.values).length : 0;
-      const ccList = node.endpoints
-        ?.flatMap((ep) => (ep.commandClasses ?? []).map((cc) => cc.name ?? `0x${cc.id.toString(16)}`))
-        .filter((v, i, a) => a.indexOf(v) === i) ?? [];
+      // Derive CCs from values (endpoint.commandClasses is often empty)
+      const ccIdSet = new Set<number>();
+      for (const val of Object.values(node.values ?? {})) {
+        ccIdSet.add(val.commandClass);
+      }
+      for (const ep of node.endpoints ?? []) {
+        for (const cc of ep.commandClasses ?? []) {
+          ccIdSet.add(cc.id);
+        }
+      }
+      const ccList = [...ccIdSet].map((id) => `0x${id.toString(16)}`);
       this.log.info(`Node ${nodeId} (${nodeName}): ready=${node.ready}, endpoints=${endpointCount}, values=${valueCount}, CCs=[${ccList.join(', ')}]`);
 
       // Skip the controller node (node 1 is typically the controller)
