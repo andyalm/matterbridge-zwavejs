@@ -1,6 +1,10 @@
+console.error('[matterbridge-zwavejs] Module loading started');
+
 import type { PlatformConfig, PlatformMatterbridge } from 'matterbridge';
 import type { AnsiLogger } from 'matterbridge/logger';
 import { ZWaveJSPlatform } from './platform.js';
+
+console.error('[matterbridge-zwavejs] Module loaded successfully');
 
 export default function initializePlugin(
   matterbridge: PlatformMatterbridge,
