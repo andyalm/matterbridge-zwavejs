@@ -127,7 +127,7 @@ export class ZWaveClient extends EventEmitter {
 
   private async startListening(): Promise<void> {
     const result = (await this.sendCommand('start_listening')) as StartListeningResult;
-    const nodes = result.state.controller.nodes;
+    const nodes = result.state.nodes;
     this.log.info(`Received state with ${nodes.length} node(s)`);
     for (const node of nodes) {
       this.nodes.set(node.nodeId, node);

@@ -156,8 +156,8 @@ export interface StartListeningResult {
     controller: {
       homeId: number;
       ownNodeId: number;
-      nodes: ZWaveNode[];
     };
+    nodes: ZWaveNode[];
   };
 }
 
