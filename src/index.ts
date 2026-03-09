@@ -1,11 +1,1 @@
-import { type PlatformConfig, type PlatformMatterbridge } from 'matterbridge';
-import type { AnsiLogger } from 'matterbridge/logger';
-import { ZWaveJSPlatform } from './platform.js';
-
-export default function initializePlugin(
-  matterbridge: PlatformMatterbridge,
-  log: AnsiLogger,
-  config: PlatformConfig,
-): ZWaveJSPlatform {
-  return new ZWaveJSPlatform(matterbridge, log, config);
-}
+export { ZWaveJSPlatform as default } from './platform.js';
