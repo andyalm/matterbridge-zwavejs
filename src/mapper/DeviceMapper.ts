@@ -31,8 +31,9 @@ export function mapNode(node: ZWaveNode): MappedDevice[] {
   const devices: MappedDevice[] = [];
 
   for (const endpoint of node.endpoints) {
-    const ccIds = new Set(endpoint.commandClasses.map((cc) => cc.id));
-    const endpointDevices = mapEndpoint(node, endpoint.index, ccIds, endpoint.commandClasses);
+    const commandClasses = endpoint.commandClasses ?? [];
+    const ccIds = new Set(commandClasses.map((cc) => cc.id));
+    const endpointDevices = mapEndpoint(node, endpoint.index, ccIds, commandClasses);
     devices.push(...endpointDevices);
   }
 
