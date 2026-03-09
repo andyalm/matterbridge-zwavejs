@@ -192,8 +192,6 @@ function isLikelyLight(node: ZWaveNode): boolean {
   return (
     combined.includes('light') ||
     combined.includes('lamp') ||
-    combined.includes('bulb') ||
-    combined.includes('dimmer') ||
-    combined.includes('switch') // wall switches typically control lights
+    combined.includes('bulb')
   );
 }
