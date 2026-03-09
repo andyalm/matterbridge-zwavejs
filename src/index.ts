@@ -7,5 +7,10 @@ export default function initializePlugin(
   log: AnsiLogger,
   config: PlatformConfig,
 ): ZWaveJSPlatform {
-  return new ZWaveJSPlatform(matterbridge, log, config);
+  try {
+    return new ZWaveJSPlatform(matterbridge, log, config);
+  } catch (error) {
+    console.error('[matterbridge-zwavejs] Failed to initialize plugin:', error);
+    throw error;
+  }
 }
