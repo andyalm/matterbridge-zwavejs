@@ -83,15 +83,26 @@ export class ZWaveJSPlatform extends MatterbridgeDynamicPlatform {
     this.log.info(`Processing ${nodes.size} Z-Wave node(s)`);
 
     for (const [nodeId, node] of nodes) {
+      const nodeName = node.name ?? node.deviceConfig?.label ?? `Node ${nodeId}`;
+      const endpointCount = node.endpoints?.length ?? 0;
+      const valueCount = node.values ? Object.keys(node.values).length : 0;
+      const ccList = node.endpoints
+        ?.flatMap((ep) => (ep.commandClasses ?? []).map((cc) => cc.name ?? `0x${cc.id.toString(16)}`))
+        .filter((v, i, a) => a.indexOf(v) === i) ?? [];
+      this.log.info(`Node ${nodeId} (${nodeName}): ready=${node.ready}, endpoints=${endpointCount}, values=${valueCount}, CCs=[${ccList.join(', ')}]`);
+
       // Skip the controller node (node 1 is typically the controller)
-      if (nodeId === 1) continue;
+      if (nodeId === 1) {
+        this.log.info(`Skipping node ${nodeId}: controller node`);
+        continue;
+      }
 
       // Apply include/exclude filters
       if (includeNodes.length > 0 && !includeNodes.includes(nodeId)) continue;
       if (excludeNodes.includes(nodeId)) continue;
 
       if (!node.ready) {
-        this.log.debug(`Skipping node ${nodeId}: not ready (interview stage: ${node.interviewStage})`);
+        this.log.info(`Skipping node ${nodeId}: not ready (interview stage: ${node.interviewStage})`);
         continue;
       }
 
