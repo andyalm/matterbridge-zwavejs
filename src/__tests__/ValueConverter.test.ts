@@ -8,8 +8,8 @@ import {
 } from '../mapper/ValueConverter.js';
 
 describe('zwaveLevelToMatter', () => {
-  it('converts 0 to 0', () => {
-    expect(zwaveLevelToMatter(0)).toBe(0);
+  it('converts 0 to 1 (Matter minLevel)', () => {
+    expect(zwaveLevelToMatter(0)).toBe(1);
   });
 
   it('converts 99 to 254', () => {
@@ -22,8 +22,8 @@ describe('zwaveLevelToMatter', () => {
     expect(result).toBeLessThan(130);
   });
 
-  it('clamps negative values to 0', () => {
-    expect(zwaveLevelToMatter(-1)).toBe(0);
+  it('clamps negative values to 1 (Matter minLevel)', () => {
+    expect(zwaveLevelToMatter(-1)).toBe(1);
   });
 
   it('clamps values above 99 to 254', () => {

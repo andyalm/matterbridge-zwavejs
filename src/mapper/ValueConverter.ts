@@ -6,9 +6,9 @@ import { CommandClass } from '../zwave/types.js';
  * Matter uses 0-254 range.
  */
 export function zwaveLevelToMatter(zwaveLevel: number): number {
-  if (zwaveLevel <= 0) return 0;
+  if (zwaveLevel <= 0) return 1; // Matter minLevel is 1, not 0
   if (zwaveLevel >= 99) return 254;
-  return Math.round((zwaveLevel / 99) * 254);
+  return Math.max(1, Math.round((zwaveLevel / 99) * 254));
 }
 
 /**
