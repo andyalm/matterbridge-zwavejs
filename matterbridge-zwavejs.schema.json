@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "properties": {
+    "serverUrl": {
+      "type": "string",
+      "description": "WebSocket URL of your Z-Wave JS UI server (e.g. ws://192.168.1.100:3000)",
+      "default": "ws://localhost:3000"
+    },
+    "includeNodes": {
+      "type": "array",
+      "items": { "type": "number" },
+      "description": "Only bridge these Z-Wave node IDs (leave empty to include all)",
+      "default": []
+    },
+    "excludeNodes": {
+      "type": "array",
+      "items": { "type": "number" },
+      "description": "Exclude these Z-Wave node IDs from being bridged",
+      "default": []
+    }
+  }
+}
