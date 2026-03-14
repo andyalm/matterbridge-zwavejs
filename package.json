@@ -1,7 +1,7 @@
 {
   "name": "matterbridge-zwavejs",
   "version": "0.1.0",
-  "description": "Matterbridge plugin to expose Z-Wave JS devices as Matter devices",
+  "description": "Z-Wave JS plugin for Matterbridge",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
