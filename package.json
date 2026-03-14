@@ -24,11 +24,24 @@
     "smart-home",
     "iot"
   ],
-  "author": "",
+  "author": "Andy Alm",
   "license": "MIT",
+  "files": [
+    "dist/",
+    "matterbridge-zwavejs.schema.json",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/andyalm/matterbridge-zwavejs"
+  },
+  "homepage": "https://github.com/andyalm/matterbridge-zwavejs#readme",
+  "bugs": {
+    "url": "https://github.com/andyalm/matterbridge-zwavejs/issues"
   },
   "dependencies": {
     "ws": "^8.18.0"
