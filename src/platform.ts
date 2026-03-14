@@ -12,6 +12,7 @@ import {
   temperatureSensor,
   humiditySensor,
   lightSensor,
+  waterLeakDetector,
 } from 'matterbridge';
 import type { AnsiLogger } from 'matterbridge/logger';
 import { ZWaveClient } from './zwave/ZWaveClient.js';
@@ -210,6 +211,8 @@ export class ZWaveJSPlatform extends MatterbridgeDynamicPlatform {
       endpoint.createDefaultBooleanStateClusterServer();
     } else if (deviceType === occupancySensor) {
       endpoint.createDefaultOccupancySensingClusterServer();
+    } else if (deviceType === waterLeakDetector) {
+      endpoint.createDefaultBooleanStateClusterServer();
     }
   }
 

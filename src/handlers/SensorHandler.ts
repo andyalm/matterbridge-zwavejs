@@ -1,8 +1,15 @@
 import type { MatterbridgeEndpoint, DeviceTypeDefinition } from 'matterbridge';
-import { temperatureSensor, humiditySensor, lightSensor, contactSensor, occupancySensor } from 'matterbridge';
+import {
+  temperatureSensor,
+  humiditySensor,
+  lightSensor,
+  contactSensor,
+  occupancySensor,
+  waterLeakDetector,
+} from 'matterbridge';
 import type { AnsiLogger } from 'matterbridge/logger';
 import type { ZWaveNode, ValueUpdatedArgs } from '../zwave/types.js';
-import { CommandClass } from '../zwave/types.js';
+import { CommandClass, NotificationType } from '../zwave/types.js';
 import { zwaveTemperatureToMatter, zwaveHumidityToMatter, zwaveIlluminanceToMatter } from '../mapper/ValueConverter.js';
 
 /**
@@ -35,6 +42,8 @@ export class SensorHandler {
       await this.handleContactUpdate(args);
     } else if (this.deviceType === occupancySensor) {
       await this.handleOccupancyUpdate(args);
+    } else if (this.deviceType === waterLeakDetector) {
+      await this.handleWaterLeakUpdate(args);
     }
   }
 
@@ -101,6 +110,8 @@ export class SensorHandler {
       this.setInitialContact();
     } else if (this.deviceType === occupancySensor) {
       this.setInitialOccupancy();
+    } else if (this.deviceType === waterLeakDetector) {
+      this.setInitialWaterLeak();
     }
   }
 
@@ -153,6 +164,33 @@ export class SensorHandler {
     if (value !== undefined) {
       this.endpoint.setAttribute('occupancySensing', 'occupancy', { occupied: Boolean(value) }, this.log);
     }
+  }
+
+  private async handleWaterLeakUpdate(args: ValueUpdatedArgs): Promise<void> {
+    if (args.commandClass === CommandClass.Notification) {
+      // Z-Wave: 0 = idle (dry), non-zero (e.g. 2) = water leak detected
+      // Matter BooleanState: true = normal (dry), false = alarm (leak)
+      const noLeak = !args.newValue;
+      this.log.debug(`Node ${this.node.nodeId}: Water Leak → ${noLeak ? 'dry' : 'leak detected'}`);
+      await this.endpoint.setAttribute('booleanState', 'stateValue', noLeak, this.log);
+    }
+  }
+
+  private setInitialWaterLeak(): void {
+    const value = this.findNotificationValue(NotificationType.Water);
+    if (value !== undefined) {
+      this.endpoint.setAttribute('booleanState', 'stateValue', !value, this.log);
+    }
+  }
+
+  private findNotificationValue(notificationType: number): unknown {
+    for (const [, val] of Object.entries(this.node.values)) {
+      if (val.commandClass !== CommandClass.Notification) continue;
+      if (val.endpoint !== this.zwaveEndpointIndex) continue;
+      if (val.metadata?.ccSpecific?.['notificationType'] !== notificationType) continue;
+      return val.value;
+    }
+    return undefined;
   }
 
   private findSensorValue(commandClass: number, propertyHint: string): unknown {

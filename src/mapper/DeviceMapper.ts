@@ -8,6 +8,7 @@ import {
   temperatureSensor,
   humiditySensor,
   lightSensor,
+  waterLeakDetector,
 } from 'matterbridge';
 import type { ZWaveNode, ZWaveEndpointCommandClass } from '../zwave/types.js';
 import { CommandClass, NotificationType } from '../zwave/types.js';
@@ -178,6 +179,10 @@ function mapNotifications(node: ZWaveNode, endpointIndex: number): MappedDevice[
     if (notifType === NotificationType.HomeSecurity && !mapped.has('security')) {
       mapped.add('security');
       devices.push({ deviceType: occupancySensor, label: 'Motion Sensor', endpointIndex });
+    }
+    if (notifType === NotificationType.Water && !mapped.has('water')) {
+      mapped.add('water');
+      devices.push({ deviceType: waterLeakDetector, label: 'Water Leak Sensor', endpointIndex });
     }
   }
 

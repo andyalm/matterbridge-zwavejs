@@ -8,6 +8,7 @@ import {
   temperatureSensor,
   humiditySensor,
   lightSensor,
+  waterLeakDetector,
 } from 'matterbridge';
 import { mapNode } from '../mapper/DeviceMapper.js';
 import { CommandClass, NotificationType } from '../zwave/types.js';
@@ -194,6 +195,33 @@ describe('mapNode', () => {
     const devices = mapNode(node);
     expect(devices).toHaveLength(1);
     expect(devices[0].deviceType).toBe(occupancySensor);
+  });
+
+  it('maps Notification CC water alarm to waterLeakDetector', () => {
+    const node = makeNode({
+      endpoints: [makeEndpoint([CommandClass.Notification])],
+      values: {
+        '113-0-Water Alarm': {
+          commandClass: CommandClass.Notification,
+          endpoint: 0,
+          property: 'Water Alarm',
+          propertyKey: 'Sensor status',
+          value: 0,
+          metadata: {
+            type: 'number',
+            readable: true,
+            writeable: false,
+            label: 'Sensor status',
+            ccSpecific: { notificationType: NotificationType.Water },
+            states: { '0': 'idle', '2': 'Water leak detected' },
+          },
+        },
+      },
+    });
+    const devices = mapNode(node);
+    expect(devices).toHaveLength(1);
+    expect(devices[0].deviceType).toBe(waterLeakDetector);
+    expect(devices[0].label).toBe('Water Leak Sensor');
   });
 
   it('returns empty for node with no supported CCs', () => {
