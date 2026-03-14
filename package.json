@@ -29,6 +29,7 @@
   "files": [
     "dist/",
     "matterbridge-zwavejs.schema.json",
+    "CHANGELOG.md",
     "LICENSE",
     "README.md"
   ],
