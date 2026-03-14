@@ -3,29 +3,19 @@ import {
   MatterbridgeEndpoint,
   type PlatformConfig,
   type PlatformMatterbridge,
-  type DeviceTypeDefinition,
-  dimmableLight,
-  onOffLight,
-  onOffOutlet,
-  contactSensor,
-  occupancySensor,
-  temperatureSensor,
-  humiditySensor,
-  lightSensor,
-  waterLeakDetector,
 } from 'matterbridge';
 import type { AnsiLogger } from 'matterbridge/logger';
 import { ZWaveClient } from './zwave/ZWaveClient.js';
 import type { ZWaveNode, ValueUpdatedArgs } from './zwave/types.js';
 import { CommandClass } from './zwave/types.js';
 import { mapNode, type MappedDevice } from './mapper/DeviceMapper.js';
-import { SwitchHandler } from './handlers/SwitchHandler.js';
-import { SensorHandler } from './handlers/SensorHandler.js';
+import type { DeviceHandler } from './handlers/DeviceHandler.js';
+import { createHandler } from './handlers/handlerRegistry.js';
 
 interface DeviceRegistration {
   endpoint: MatterbridgeEndpoint;
   mapping: MappedDevice;
-  handler: SwitchHandler | SensorHandler;
+  handler: DeviceHandler;
 }
 
 export class ZWaveJSPlatform extends MatterbridgeDynamicPlatform {
@@ -166,8 +156,15 @@ export class ZWaveJSPlatform extends MatterbridgeDynamicPlatform {
       node.deviceConfig?.description ?? mapping.label,
     );
 
-    // Add clusters based on device type
-    this.addClusters(endpoint, mapping.deviceType, node, mapping.endpointIndex);
+    // Create the handler and let it add its own clusters
+    const handler = createHandler(mapping.deviceType, {
+      endpoint,
+      node,
+      zwaveEndpointIndex: mapping.endpointIndex,
+      log: this.log,
+      client: this.client!,
+    });
+    handler.addClusters(endpoint);
 
     // Add battery power source if the node has a Battery CC
     if (this.nodeHasCommandClass(node, CommandClass.Battery)) {
@@ -177,9 +174,6 @@ export class ZWaveJSPlatform extends MatterbridgeDynamicPlatform {
       );
     }
 
-    // Create the appropriate handler
-    const handler = this.createHandler(endpoint, mapping, node);
-
     // Register with matterbridge BEFORE setting initial state (endpoint must be active)
     await super.registerDevice(endpoint);
 
@@ -188,44 +182,6 @@ export class ZWaveJSPlatform extends MatterbridgeDynamicPlatform {
 
     this.devices.set(key, { endpoint, mapping, handler });
     this.log.info(`Registered: ${deviceName} (${mapping.deviceType.name}) [${uniqueId}]`);
-  }
-
-  private addClusters(
-    endpoint: MatterbridgeEndpoint,
-    deviceType: DeviceTypeDefinition,
-    _node: ZWaveNode,
-    _endpointIndex: number,
-  ): void {
-    if (deviceType === onOffLight || deviceType === onOffOutlet) {
-      endpoint.createDefaultOnOffClusterServer();
-    } else if (deviceType === dimmableLight) {
-      endpoint.createDefaultOnOffClusterServer();
-      endpoint.createDefaultLevelControlClusterServer();
-    } else if (deviceType === temperatureSensor) {
-      endpoint.createDefaultTemperatureMeasurementClusterServer();
-    } else if (deviceType === humiditySensor) {
-      endpoint.createDefaultRelativeHumidityMeasurementClusterServer();
-    } else if (deviceType === lightSensor) {
-      endpoint.createDefaultIlluminanceMeasurementClusterServer();
-    } else if (deviceType === contactSensor) {
-      endpoint.createDefaultBooleanStateClusterServer();
-    } else if (deviceType === occupancySensor) {
-      endpoint.createDefaultOccupancySensingClusterServer();
-    } else if (deviceType === waterLeakDetector) {
-      endpoint.createDefaultBooleanStateClusterServer();
-    }
-  }
-
-  private createHandler(
-    endpoint: MatterbridgeEndpoint,
-    mapping: MappedDevice,
-    node: ZWaveNode,
-  ): SwitchHandler | SensorHandler {
-    const dt = mapping.deviceType;
-    if (dt === onOffLight || dt === onOffOutlet || dt === dimmableLight) {
-      return new SwitchHandler(endpoint, this.client!, node, mapping.endpointIndex, dt === dimmableLight, this.log);
-    }
-    return new SensorHandler(endpoint, dt, node, mapping.endpointIndex, this.log);
   }
 
   private onValueUpdated(nodeId: number, args: ValueUpdatedArgs): void {
