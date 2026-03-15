@@ -16,18 +16,18 @@ export class WaterLeakHandler extends BaseHandler {
   setup(): void {
     const value = this.findNotificationValue(NotificationType.Water);
     if (value !== undefined) {
-      // Z-Wave: 0 = idle (dry), non-zero = leak. Matter: true = normal (dry), false = alarm (leak)
-      this.endpoint.setAttribute('booleanState', 'stateValue', !value, this.log);
+      // Z-Wave: 0 = idle (dry), non-zero = leak. Matter: true = leak detected, false = no leak
+      this.endpoint.setAttribute('booleanState', 'stateValue', Boolean(value), this.log);
     }
   }
 
   async handleValueUpdate(args: ValueUpdatedArgs): Promise<void> {
     if (args.commandClass === CommandClass.Notification) {
       // Z-Wave: 0 = idle (dry), non-zero (e.g. 2) = water leak detected
-      // Matter BooleanState: true = normal (dry), false = alarm (leak)
-      const noLeak = !args.newValue;
-      this.log.debug(`Node ${this.node.nodeId}: Water Leak → ${noLeak ? 'dry' : 'leak detected'}`);
-      await this.endpoint.setAttribute('booleanState', 'stateValue', noLeak, this.log);
+      // Matter BooleanState: true = leak detected, false = no leak
+      const leak = Boolean(args.newValue);
+      this.log.debug(`Node ${this.node.nodeId}: Water Leak → ${leak ? 'leak detected' : 'dry'}`);
+      await this.endpoint.setAttribute('booleanState', 'stateValue', leak, this.log);
     }
   }
 }
