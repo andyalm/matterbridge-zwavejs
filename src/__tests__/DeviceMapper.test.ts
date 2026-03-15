@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   onOffLight,
   onOffOutlet,
+  onOffSwitch,
   dimmableLight,
   contactSensor,
   occupancySensor,
@@ -34,13 +35,13 @@ function makeEndpoint(ccIds: number[], index = 0) {
 }
 
 describe('mapNode', () => {
-  it('maps Binary Switch to onOffOutlet by default', () => {
+  it('maps Binary Switch to onOffSwitch by default', () => {
     const node = makeNode({
       endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
     });
     const devices = mapNode(node);
     expect(devices).toHaveLength(1);
-    expect(devices[0].deviceType).toBe(onOffOutlet);
+    expect(devices[0].deviceType).toBe(onOffSwitch);
   });
 
   it('maps Binary Switch to onOffLight when device label contains "light"', () => {
@@ -51,6 +52,54 @@ describe('mapNode', () => {
     const devices = mapNode(node);
     expect(devices).toHaveLength(1);
     expect(devices[0].deviceType).toBe(onOffLight);
+  });
+
+  it('maps Binary Switch to onOffSwitch when device label contains "switch"', () => {
+    const node = makeNode({
+      endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
+      deviceConfig: { manufacturer: 'Test', label: 'In-Wall Switch', description: '' },
+    });
+    const devices = mapNode(node);
+    expect(devices).toHaveLength(1);
+    expect(devices[0].deviceType).toBe(onOffSwitch);
+  });
+
+  it('maps Binary Switch to onOffOutlet when device label contains "plug"', () => {
+    const node = makeNode({
+      endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
+      deviceConfig: { manufacturer: 'Test', label: 'Smart Plug', description: '' },
+    });
+    const devices = mapNode(node);
+    expect(devices).toHaveLength(1);
+    expect(devices[0].deviceType).toBe(onOffOutlet);
+  });
+
+  it('maps Binary Switch to onOffLight when Z-Wave specific device class indicates color light', () => {
+    const node = makeNode({
+      endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
+      deviceClass: {
+        basic: { key: 0x04, label: 'Routing End Node' },
+        generic: { key: 0x10, label: 'Binary Switch' },
+        specific: { key: 0x02, label: 'Color Tunable Binary' },
+      },
+    });
+    const devices = mapNode(node);
+    expect(devices).toHaveLength(1);
+    expect(devices[0].deviceType).toBe(onOffLight);
+  });
+
+  it('maps Binary Switch to onOffOutlet when Z-Wave specific device class indicates power strip', () => {
+    const node = makeNode({
+      endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
+      deviceClass: {
+        basic: { key: 0x04, label: 'Routing End Node' },
+        generic: { key: 0x10, label: 'Binary Switch' },
+        specific: { key: 0x04, label: 'Power Strip' },
+      },
+    });
+    const devices = mapNode(node);
+    expect(devices).toHaveLength(1);
+    expect(devices[0].deviceType).toBe(onOffOutlet);
   });
 
   it('maps Multilevel Switch to dimmableLight', () => {

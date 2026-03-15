@@ -2,6 +2,7 @@ import type { DeviceTypeDefinition } from 'matterbridge';
 import {
   onOffLight,
   onOffOutlet,
+  onOffSwitch,
   dimmableLight,
   contactSensor,
   occupancySensor,
@@ -72,15 +73,8 @@ function mapEndpoint(
       endpointIndex,
     });
   } else if (ccIds.has(CommandClass.BinarySwitch)) {
-    // Binary Switch → On/Off Outlet or Light
-    // Default to outlet since Matter controllers (e.g. Google Home) let the user
-    // change the type for outlets, but not for lights.
-    const isLight = isLikelyLight(node);
-    devices.push({
-      deviceType: isLight ? onOffLight : onOffOutlet,
-      label: isLight ? 'Light' : 'Outlet',
-      endpointIndex,
-    });
+    const { deviceType, label } = classifyBinarySwitch(node);
+    devices.push({ deviceType, label, endpointIndex });
   }
 
   // Multilevel Sensor — may produce multiple Matter devices
@@ -189,10 +183,43 @@ function mapNotifications(node: ZWaveNode, endpointIndex: number): MappedDevice[
   return devices;
 }
 
-/** Heuristic: determine if a binary switch node is likely a light rather than an outlet/plug. */
-function isLikelyLight(node: ZWaveNode): boolean {
-  const label = node.deviceConfig?.label?.toLowerCase() ?? '';
-  const desc = node.deviceConfig?.description?.toLowerCase() ?? '';
-  const combined = `${label} ${desc}`;
-  return combined.includes('light') || combined.includes('lamp') || combined.includes('bulb');
+/**
+ * Classify a binary switch node as a Matter light, switch, or outlet.
+ * Phase 1: Check Z-Wave deviceClass.specific for clear indicators.
+ * Phase 2: Fall back to device config label/description heuristics.
+ * Default: switch.
+ */
+function classifyBinarySwitch(node: ZWaveNode): { deviceType: DeviceTypeDefinition; label: string } {
+  // Phase 1: Z-Wave specific device class
+  const specificLabel = node.deviceClass?.specific?.label?.toLowerCase() ?? '';
+  if (specificLabel.includes('color') || specificLabel.includes('light')) {
+    return { deviceType: onOffLight, label: 'Light' };
+  }
+  if (specificLabel.includes('power strip') || specificLabel.includes('siren') || specificLabel.includes('valve')) {
+    return { deviceType: onOffOutlet, label: 'Outlet' };
+  }
+
+  // Phase 2: Device config label/description heuristics
+  const configLabel = node.deviceConfig?.label?.toLowerCase() ?? '';
+  const configDesc = node.deviceConfig?.description?.toLowerCase() ?? '';
+  const combined = `${configLabel} ${configDesc}`;
+
+  if (
+    combined.includes('plug') ||
+    combined.includes('outlet') ||
+    combined.includes('receptacle') ||
+    combined.includes('strip')
+  ) {
+    return { deviceType: onOffOutlet, label: 'Outlet' };
+  }
+  if (
+    combined.includes('light') ||
+    combined.includes('lamp') ||
+    combined.includes('bulb') ||
+    combined.includes('dimmer')
+  ) {
+    return { deviceType: onOffLight, label: 'Light' };
+  }
+
+  return { deviceType: onOffSwitch, label: 'Switch' };
 }

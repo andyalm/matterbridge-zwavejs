@@ -2,6 +2,7 @@ import type { DeviceTypeDefinition } from 'matterbridge';
 import {
   onOffLight,
   onOffOutlet,
+  onOffSwitch,
   dimmableLight,
   temperatureSensor,
   humiditySensor,
@@ -26,6 +27,7 @@ const registry = new Map<DeviceTypeDefinition, HandlerFactory>();
 
 registry.set(onOffLight, (ctx) => new BinarySwitchHandler(ctx));
 registry.set(onOffOutlet, (ctx) => new BinarySwitchHandler(ctx));
+registry.set(onOffSwitch, (ctx) => new BinarySwitchHandler(ctx));
 registry.set(dimmableLight, (ctx) => new DimmableLightHandler(ctx));
 registry.set(temperatureSensor, (ctx) => new TemperatureSensorHandler(ctx));
 registry.set(humiditySensor, (ctx) => new HumiditySensorHandler(ctx));
