@@ -1,4 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('matterbridge', () => import('./helpers/matterbridgeMock.js'));
+vi.mock('matterbridge/logger', () => ({}));
+
 import {
   onOffLight,
   onOffOutlet,
@@ -13,26 +17,7 @@ import {
 } from 'matterbridge';
 import { mapNode } from '../mapper/DeviceMapper.js';
 import { CommandClass, NotificationType } from '../zwave/types.js';
-import type { ZWaveNode } from '../zwave/types.js';
-
-function makeNode(overrides: Partial<ZWaveNode> = {}): ZWaveNode {
-  return {
-    nodeId: 2,
-    status: 4,
-    ready: true,
-    endpoints: [],
-    values: {},
-    ...overrides,
-  };
-}
-
-function makeEndpoint(ccIds: number[], index = 0) {
-  return {
-    nodeId: 2,
-    index,
-    commandClasses: ccIds.map((id) => ({ id, name: `CC_${id}`, version: 1, isSecure: false })),
-  };
-}
+import { makeNode, makeEndpoint } from './helpers/testUtils.js';
 
 describe('mapNode', () => {
   it('maps Binary Switch to onOffSwitch by default', () => {
