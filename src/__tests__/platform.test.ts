@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 
-// Mock matterbridge
 vi.mock('matterbridge', () => import('./helpers/matterbridgeMock.js'));
 vi.mock('matterbridge/logger', () => ({}));
 
@@ -28,12 +27,11 @@ import { CommandClass } from '../zwave/types.js';
 import type { ZWaveNode } from '../zwave/types.js';
 import { makeLogger, makeNode, makeEndpoint, makeValues } from './helpers/testUtils.js';
 
-function makePlatform() {
+function makePlatform(configOverrides: Record<string, unknown> = {}) {
   const log = makeLogger();
-  const config = { serverUrl: 'ws://localhost:3000', excludeNodes: [], includeNodes: [] };
+  const config = { serverUrl: 'ws://localhost:3000', excludeNodes: [], includeNodes: [], ...configOverrides };
   const matterbridge = {};
   const platform = new ZWaveJSPlatform(matterbridge as never, log as never, config as never);
-
   return { platform, log, config };
 }
 
@@ -42,237 +40,171 @@ function getDevicesMap(platform: ZWaveJSPlatform): Map<string, unknown> {
   return (platform as unknown as { devices: Map<string, unknown> }).devices;
 }
 
-describe('ZWaveJSPlatform', () => {
+/** Emit allNodesReady and wait for async processing. */
+async function discoverNodes(nodes: Map<number, ZWaveNode>) {
+  fakeClient.emit('allNodesReady', nodes);
+  await new Promise((r) => setTimeout(r, 10));
+}
+
+function binarySwitchNode(nodeId: number, overrides: Partial<ZWaveNode> = {}): ZWaveNode {
+  return makeNode({
+    nodeId,
+    endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
+    values: makeValues({
+      commandClass: CommandClass.BinarySwitch,
+      property: 'currentValue',
+      value: false,
+    }),
+    ...overrides,
+  });
+}
+
+describe('discovering Z-Wave devices', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('onStart', () => {
-    it('creates a ZWaveClient and connects', async () => {
-      const { platform } = makePlatform();
+  it('skips the Z-Wave controller node', async () => {
+    const { platform } = makePlatform();
+    await platform.onStart('test');
 
-      await platform.onStart('test');
+    const nodes = new Map<number, ZWaveNode>();
+    nodes.set(1, binarySwitchNode(1));
+    nodes.set(2, binarySwitchNode(2));
 
-      expect(fakeClient).toBeDefined();
-      await platform.onShutdown('test');
-    });
+    await discoverNodes(nodes);
+
+    const devices = getDevicesMap(platform);
+    expect(devices.size).toBe(1);
+    expect([...devices.keys()][0]).toMatch(/^2-/);
+
+    await platform.onShutdown('test');
   });
 
-  describe('onAllNodesReady', () => {
-    it('registers devices for ready nodes, skipping controller node 1', async () => {
-      const { platform } = makePlatform();
-      await platform.onStart('test');
+  it('only registers nodes in the include list when configured', async () => {
+    const { platform } = makePlatform({ includeNodes: [3] });
+    await platform.onStart('test');
 
-      const nodes = new Map<number, ZWaveNode>();
-      nodes.set(
-        1,
-        makeNode({
-          nodeId: 1,
-          endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
-        }),
-      );
-      nodes.set(
-        2,
-        makeNode({
-          nodeId: 2,
-          endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
-          values: makeValues({
-            commandClass: CommandClass.BinarySwitch,
-            property: 'currentValue',
-            value: false,
-          }),
-        }),
-      );
+    const nodes = new Map<number, ZWaveNode>();
+    nodes.set(2, binarySwitchNode(2));
 
-      // Trigger allNodesReady event
-      fakeClient.emit('allNodesReady', nodes);
+    await discoverNodes(nodes);
 
-      // Wait for async processing
-      await new Promise((r) => setTimeout(r, 10));
+    expect(getDevicesMap(platform).size).toBe(0);
 
-      // Node 2 should be registered (devices map should have an entry for it)
-      const devices = getDevicesMap(platform);
-      expect(devices.size).toBe(1);
-      // The key starts with "2-" (nodeId 2), NOT "1-" (controller)
-      const keys = [...devices.keys()];
-      expect(keys[0]).toMatch(/^2-/);
-
-      await platform.onShutdown('test');
-    });
-
-    it('respects excludeNodes config', async () => {
-      const { platform, config } = makePlatform();
-      (config as Record<string, unknown>).excludeNodes = [2];
-      await platform.onStart('test');
-
-      const nodes = new Map<number, ZWaveNode>();
-      nodes.set(
-        2,
-        makeNode({
-          nodeId: 2,
-          endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
-          values: makeValues({
-            commandClass: CommandClass.BinarySwitch,
-            property: 'currentValue',
-            value: false,
-          }),
-        }),
-      );
-
-      fakeClient.emit('allNodesReady', nodes);
-      await new Promise((r) => setTimeout(r, 10));
-
-      // Node 2 is excluded, so no devices should be registered
-      expect(getDevicesMap(platform).size).toBe(0);
-
-      await platform.onShutdown('test');
-    });
-
-    it('respects includeNodes config', async () => {
-      const { platform, config } = makePlatform();
-      (config as Record<string, unknown>).includeNodes = [3]; // Only include node 3
-      await platform.onStart('test');
-
-      const nodes = new Map<number, ZWaveNode>();
-      nodes.set(
-        2,
-        makeNode({
-          nodeId: 2,
-          endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
-          values: makeValues({
-            commandClass: CommandClass.BinarySwitch,
-            property: 'currentValue',
-            value: false,
-          }),
-        }),
-      );
-
-      fakeClient.emit('allNodesReady', nodes);
-      await new Promise((r) => setTimeout(r, 10));
-
-      // Node 2 is not in includeNodes, so no devices should be registered
-      expect(getDevicesMap(platform).size).toBe(0);
-
-      await platform.onShutdown('test');
-    });
-
-    it('skips nodes that are not ready', async () => {
-      const { platform } = makePlatform();
-      await platform.onStart('test');
-
-      const nodes = new Map<number, ZWaveNode>();
-      nodes.set(
-        2,
-        makeNode({
-          nodeId: 2,
-          ready: false,
-          interviewStage: 'ProtocolInfo',
-          endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
-        }),
-      );
-
-      fakeClient.emit('allNodesReady', nodes);
-      await new Promise((r) => setTimeout(r, 10));
-
-      expect(getDevicesMap(platform).size).toBe(0);
-
-      await platform.onShutdown('test');
-    });
+    await platform.onShutdown('test');
   });
 
-  describe('onValueUpdated', () => {
-    it('routes value updates to the correct handler', async () => {
-      const { platform } = makePlatform();
-      await platform.onStart('test');
+  it('skips nodes in the exclude list', async () => {
+    const { platform } = makePlatform({ excludeNodes: [2] });
+    await platform.onStart('test');
 
-      // Register a node with a binary switch
-      const nodes = new Map<number, ZWaveNode>();
-      nodes.set(
-        2,
-        makeNode({
-          nodeId: 2,
-          endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
-          values: makeValues({
-            commandClass: CommandClass.BinarySwitch,
-            property: 'currentValue',
-            value: false,
-          }),
-        }),
-      );
+    const nodes = new Map<number, ZWaveNode>();
+    nodes.set(2, binarySwitchNode(2));
 
-      fakeClient.emit('allNodesReady', nodes);
-      await new Promise((r) => setTimeout(r, 10));
+    await discoverNodes(nodes);
 
-      // Now send a value update
-      fakeClient.emit('valueUpdated', 2, {
-        commandClass: CommandClass.BinarySwitch,
-        commandClassName: 'Binary Switch',
-        endpoint: 0,
-        property: 'currentValue',
-        newValue: true,
-        prevValue: false,
-      });
+    expect(getDevicesMap(platform).size).toBe(0);
 
-      // Give the async handler time to process
-      await new Promise((r) => setTimeout(r, 10));
-
-      // No errors should have been logged
-      // (We can't easily check the endpoint state since it's internal,
-      // but we can verify no errors occurred)
-      const logObj = platform['log'] as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      const errorCalls = logObj.error?.mock.calls ?? [];
-      const handlerErrors = errorCalls.filter((c: unknown[]) => String(c[0]).includes('Error handling value update'));
-      expect(handlerErrors).toHaveLength(0);
-
-      await platform.onShutdown('test');
-    });
+    await platform.onShutdown('test');
   });
 
-  describe('onNodeRemoved', () => {
-    it('unregisters devices when a node is removed', async () => {
-      const { platform } = makePlatform();
-      await platform.onStart('test');
+  it('skips nodes that are not yet ready', async () => {
+    const { platform } = makePlatform();
+    await platform.onStart('test');
 
-      const nodes = new Map<number, ZWaveNode>();
-      nodes.set(
-        2,
-        makeNode({
-          nodeId: 2,
-          endpoints: [makeEndpoint([CommandClass.BinarySwitch])],
-          values: makeValues({
-            commandClass: CommandClass.BinarySwitch,
-            property: 'currentValue',
-            value: false,
-          }),
-        }),
-      );
+    const nodes = new Map<number, ZWaveNode>();
+    nodes.set(2, binarySwitchNode(2, { ready: false, interviewStage: 'ProtocolInfo' }));
 
-      fakeClient.emit('allNodesReady', nodes);
-      await new Promise((r) => setTimeout(r, 10));
+    await discoverNodes(nodes);
 
-      // Confirm device was registered
-      expect(getDevicesMap(platform).size).toBe(1);
+    expect(getDevicesMap(platform).size).toBe(0);
 
-      // Now remove the node
-      fakeClient.emit('nodeRemoved', 2);
-      await new Promise((r) => setTimeout(r, 10));
-
-      // Device should be removed from internal map
-      expect(getDevicesMap(platform).size).toBe(0);
-
-      await platform.onShutdown('test');
-    });
+    await platform.onShutdown('test');
   });
 
-  describe('onShutdown', () => {
-    it('disconnects the client and clears devices', async () => {
-      const { platform } = makePlatform();
-      await platform.onStart('test');
+  it('registers a Matter device for each mapped Z-Wave endpoint', async () => {
+    const { platform } = makePlatform();
+    await platform.onStart('test');
 
-      await platform.onShutdown('test');
+    const nodes = new Map<number, ZWaveNode>();
+    nodes.set(2, binarySwitchNode(2));
 
-      // Should not throw on second shutdown
-      await platform.onShutdown('test');
+    await discoverNodes(nodes);
+
+    expect(getDevicesMap(platform).size).toBe(1);
+
+    await platform.onShutdown('test');
+  });
+});
+
+describe('receiving Z-Wave value updates', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('forwards the update to the correct device handler without errors', async () => {
+    const { platform, log } = makePlatform();
+    await platform.onStart('test');
+
+    const nodes = new Map<number, ZWaveNode>();
+    nodes.set(2, binarySwitchNode(2));
+    await discoverNodes(nodes);
+
+    fakeClient.emit('valueUpdated', 2, {
+      commandClass: CommandClass.BinarySwitch,
+      commandClassName: 'Binary Switch',
+      endpoint: 0,
+      property: 'currentValue',
+      newValue: true,
+      prevValue: false,
     });
+    await new Promise((r) => setTimeout(r, 10));
+
+    const errorCalls = (log.error as ReturnType<typeof vi.fn>).mock.calls;
+    const handlerErrors = errorCalls.filter((c: unknown[]) => String(c[0]).includes('Error handling value update'));
+    expect(handlerErrors).toHaveLength(0);
+
+    await platform.onShutdown('test');
+  });
+});
+
+describe('removing Z-Wave nodes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('unregisters the device when a node is removed from the network', async () => {
+    const { platform } = makePlatform();
+    await platform.onStart('test');
+
+    const nodes = new Map<number, ZWaveNode>();
+    nodes.set(2, binarySwitchNode(2));
+    await discoverNodes(nodes);
+
+    expect(getDevicesMap(platform).size).toBe(1);
+
+    fakeClient.emit('nodeRemoved', 2);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(getDevicesMap(platform).size).toBe(0);
+
+    await platform.onShutdown('test');
+  });
+});
+
+describe('shutting down', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('disconnects from the Z-Wave server', async () => {
+    const { platform } = makePlatform();
+    await platform.onStart('test');
+
+    await platform.onShutdown('test');
+
+    // Should not throw on repeated shutdown
+    await platform.onShutdown('test');
   });
 });

@@ -51,6 +51,16 @@ npm run build      # TypeScript compilation
 npm test           # Run vitest tests
 ```
 
+## Testing Philosophy
+
+Follow the **testing trophy** approach:
+
+- **Integration tests are the default.** Test real classes working together (handlers + registry + value converters + base handler). Only fake external I/O boundaries: the WebSocket connection (`ws` module) and the matterbridge framework API (endpoint, clusters).
+- **BDD-style naming.** `describe` blocks name the scenario or capability; `it` blocks describe expected behavior from the user/system perspective — not implementation details. Write `it('reports the light as off when brightness reaches zero')` not `it('calls setAttribute with onOff false when level is 0')`.
+- **Unit tests are acceptable** for pure functions with complex logic (e.g., value conversion math) where integration testing would cause combinatorial explosion.
+- **I/O boundaries to fake:** WebSocket (`ws` module via `vi.mock`), matterbridge endpoint API (use `makeMockEndpoint()` from test helpers), `ZWaveClient.setValue()` (use `makeMockClient()`).
+- **Shared test helpers** live in `src/__tests__/helpers/` — reuse `makeNode()`, `makeEndpoint()`, `makeValues()`, `makeMockEndpoint()`, `makeMockClient()`, and `makeLogger()`.
+
 ## Docker Deployment (Volume Mount)
 
 **Always build on the host machine**, not inside the Docker container. The container's global matterbridge lacks TypeScript declaration files, so `tsc` will fail there.

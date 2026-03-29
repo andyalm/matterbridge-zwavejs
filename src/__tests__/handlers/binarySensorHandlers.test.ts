@@ -16,95 +16,80 @@ import {
 } from '../helpers/testUtils.js';
 import type { AnsiLogger } from 'matterbridge/logger';
 
-describe('ContactSensorHandler integration', () => {
+describe('contact sensor devices', () => {
   let endpoint: MockEndpoint;
   let log: AnsiLogger;
+
+  function createContactSensor(sensorValue: boolean) {
+    const node = makeNode({
+      endpoints: [makeEndpoint([CommandClass.BinarySensor])],
+      values: makeValues({
+        commandClass: CommandClass.BinarySensor,
+        property: 'Any',
+        value: sensorValue,
+      }),
+    });
+
+    const mapped = mapNode(node);
+    const handler = createHandler(mapped[0].deviceType, {
+      endpoint: endpoint as never,
+      node,
+      zwaveEndpointIndex: 0,
+      log,
+    });
+    handler.addClusters(endpoint as never);
+    handler.setup();
+    return handler;
+  }
 
   beforeEach(() => {
     endpoint = makeMockEndpoint();
     log = makeLogger();
   });
 
-  it('maps a binary sensor to contact sensor with inverted logic', async () => {
-    const node = makeNode({
-      endpoints: [makeEndpoint([CommandClass.BinarySensor])],
-      values: makeValues({
-        commandClass: CommandClass.BinarySensor,
-        property: 'Any',
-        value: true, // Z-Wave true = open (alarm)
-      }),
-    });
+  it('reports contact as closed when Z-Wave reports no alarm', () => {
+    createContactSensor(false);
+    // Z-Wave false (closed/no alarm) → Matter true (contact)
+    expect(endpoint.attributes['booleanState.stateValue']).toBe(true);
+  });
 
-    const mapped = mapNode(node);
-    expect(mapped).toHaveLength(1);
-    expect(mapped[0].deviceType.name).toBe('contactSensor');
-
-    const handler = createHandler(mapped[0].deviceType, {
-      endpoint: endpoint as never,
-      node,
-      zwaveEndpointIndex: 0,
-      log,
-    });
-
-    handler.addClusters(endpoint as never);
-    expect(endpoint.createDefaultBooleanStateClusterServer).toHaveBeenCalled();
-
-    handler.setup();
-    // Z-Wave true (open) → Matter false (no contact)
+  it('reports contact as open when Z-Wave reports an alarm', () => {
+    createContactSensor(true);
+    // Z-Wave true (open/alarm) → Matter false (no contact)
     expect(endpoint.attributes['booleanState.stateValue']).toBe(false);
   });
 
-  it('inverts value on Z-Wave update: closed→contact, open→no contact', async () => {
-    const node = makeNode({
-      endpoints: [makeEndpoint([CommandClass.BinarySensor])],
-      values: makeValues({
-        commandClass: CommandClass.BinarySensor,
-        property: 'Any',
-        value: false,
-      }),
-    });
-
-    const mapped = mapNode(node);
-    const handler = createHandler(mapped[0].deviceType, {
-      endpoint: endpoint as never,
-      node,
-      zwaveEndpointIndex: 0,
-      log,
-    });
-
-    handler.addClusters(endpoint as never);
-    handler.setup();
-    // Z-Wave false (closed) → Matter true (contact)
-    expect(endpoint.attributes['booleanState.stateValue']).toBe(true);
-
+  it('updates the contact state when the door opens', async () => {
+    const handler = createContactSensor(false);
     endpoint.setAttribute.mockClear();
 
-    // Door opens: Z-Wave true → Matter false
     await handler.handleValueUpdate({
       commandClass: CommandClass.BinarySensor,
-      commandClassName: 'Binary Sensor',
       endpoint: 0,
       property: 'Any',
       newValue: true,
       prevValue: false,
     });
-    expect(endpoint.setAttribute).toHaveBeenCalledWith('booleanState', 'stateValue', false, log);
 
+    expect(endpoint.setAttribute).toHaveBeenCalledWith('booleanState', 'stateValue', false, log);
+  });
+
+  it('updates the contact state when the door closes', async () => {
+    const handler = createContactSensor(true);
     endpoint.setAttribute.mockClear();
 
-    // Door closes: Z-Wave false → Matter true
     await handler.handleValueUpdate({
       commandClass: CommandClass.BinarySensor,
-      commandClassName: 'Binary Sensor',
       endpoint: 0,
       property: 'Any',
       newValue: false,
       prevValue: true,
     });
+
     expect(endpoint.setAttribute).toHaveBeenCalledWith('booleanState', 'stateValue', true, log);
   });
 
-  it('handles Notification CC access control events as contact', async () => {
+  it('handles access control notification events as contact state', async () => {
     const node = makeNode({
       endpoints: [makeEndpoint([CommandClass.Notification])],
       values: makeValues({
@@ -130,28 +115,24 @@ describe('ContactSensorHandler integration', () => {
       zwaveEndpointIndex: 0,
       log,
     });
-
     handler.addClusters(endpoint as never);
     handler.setup();
-
     endpoint.setAttribute.mockClear();
 
-    // Notification CC value update
     await handler.handleValueUpdate({
       commandClass: CommandClass.Notification,
-      commandClassName: 'Notification',
       endpoint: 0,
       property: 'Access Control',
       newValue: 22, // door open
       prevValue: 0,
     });
 
-    // Non-zero notification → contact = !22 = false (open)
+    // Non-zero → contact = !22 = false (open)
     expect(endpoint.setAttribute).toHaveBeenCalledWith('booleanState', 'stateValue', false, log);
   });
 });
 
-describe('OccupancySensorHandler integration', () => {
+describe('occupancy sensor devices', () => {
   let endpoint: MockEndpoint;
   let log: AnsiLogger;
 
@@ -160,62 +141,40 @@ describe('OccupancySensorHandler integration', () => {
     log = makeLogger();
   });
 
-  it('maps a motion binary sensor to occupancy sensor', async () => {
+  function createOccupancySensor(motionValue: boolean) {
     const node = makeNode({
       endpoints: [makeEndpoint([CommandClass.BinarySensor])],
       values: makeValues({
         commandClass: CommandClass.BinarySensor,
         property: 'Motion',
-        value: false,
+        value: motionValue,
         metadata: { type: 'boolean', readable: true, writeable: false, label: 'Motion sensor' },
       }),
     });
 
     const mapped = mapNode(node);
-    expect(mapped).toHaveLength(1);
-    expect(mapped[0].deviceType.name).toBe('occupancySensor');
-
     const handler = createHandler(mapped[0].deviceType, {
       endpoint: endpoint as never,
       node,
       zwaveEndpointIndex: 0,
       log,
     });
-
     handler.addClusters(endpoint as never);
-    expect(endpoint.createDefaultOccupancySensingClusterServer).toHaveBeenCalled();
-
     handler.setup();
-    // Z-Wave false → not occupied
+    return handler;
+  }
+
+  it('reports no occupancy when the sensor is idle', () => {
+    createOccupancySensor(false);
     expect(endpoint.attributes['occupancySensing.occupancy']).toEqual({ occupied: false });
   });
 
-  it('emits occupancy struct on value update', async () => {
-    const node = makeNode({
-      endpoints: [makeEndpoint([CommandClass.BinarySensor])],
-      values: makeValues({
-        commandClass: CommandClass.BinarySensor,
-        property: 'Motion',
-        value: false,
-        metadata: { type: 'boolean', readable: true, writeable: false, label: 'Motion sensor' },
-      }),
-    });
-
-    const mapped = mapNode(node);
-    const handler = createHandler(mapped[0].deviceType, {
-      endpoint: endpoint as never,
-      node,
-      zwaveEndpointIndex: 0,
-      log,
-    });
-
-    handler.addClusters(endpoint as never);
-    handler.setup();
+  it('reports occupied when Z-Wave detects motion', async () => {
+    const handler = createOccupancySensor(false);
     endpoint.setAttribute.mockClear();
 
     await handler.handleValueUpdate({
       commandClass: CommandClass.BinarySensor,
-      commandClassName: 'Binary Sensor',
       endpoint: 0,
       property: 'Motion',
       newValue: true,
@@ -225,7 +184,7 @@ describe('OccupancySensorHandler integration', () => {
     expect(endpoint.setAttribute).toHaveBeenCalledWith('occupancySensing', 'occupancy', { occupied: true }, log);
   });
 
-  it('handles Notification CC home security events', async () => {
+  it('handles home security notification events as occupancy', async () => {
     const node = makeNode({
       endpoints: [makeEndpoint([CommandClass.Notification])],
       values: makeValues({
@@ -243,22 +202,18 @@ describe('OccupancySensorHandler integration', () => {
     });
 
     const mapped = mapNode(node);
-    expect(mapped[0].deviceType.name).toBe('occupancySensor');
-
     const handler = createHandler(mapped[0].deviceType, {
       endpoint: endpoint as never,
       node,
       zwaveEndpointIndex: 0,
       log,
     });
-
     handler.addClusters(endpoint as never);
     handler.setup();
     endpoint.setAttribute.mockClear();
 
     await handler.handleValueUpdate({
       commandClass: CommandClass.Notification,
-      commandClassName: 'Notification',
       endpoint: 0,
       property: 'Home Security',
       newValue: 8, // motion detected
@@ -269,22 +224,17 @@ describe('OccupancySensorHandler integration', () => {
   });
 });
 
-describe('WaterLeakHandler integration', () => {
+describe('water leak detector devices', () => {
   let endpoint: MockEndpoint;
   let log: AnsiLogger;
 
-  beforeEach(() => {
-    endpoint = makeMockEndpoint();
-    log = makeLogger();
-  });
-
-  it('maps water notification to water leak detector with correct state logic', async () => {
+  function createWaterLeakDetector(initialValue = 0) {
     const node = makeNode({
       endpoints: [makeEndpoint([CommandClass.Notification])],
       values: makeValues({
         commandClass: CommandClass.Notification,
         property: 'Water Alarm',
-        value: 0,
+        value: initialValue,
         metadata: {
           type: 'number',
           readable: true,
@@ -297,57 +247,33 @@ describe('WaterLeakHandler integration', () => {
     });
 
     const mapped = mapNode(node);
-    expect(mapped).toHaveLength(1);
-    expect(mapped[0].deviceType.name).toBe('waterLeakDetector');
-
     const handler = createHandler(mapped[0].deviceType, {
       endpoint: endpoint as never,
       node,
       zwaveEndpointIndex: 0,
       log,
     });
-
     handler.addClusters(endpoint as never);
-    expect(endpoint.createDefaultBooleanStateClusterServer).toHaveBeenCalled();
-
     handler.setup();
-    // Z-Wave 0 (idle) → Matter false (no leak)
+    return handler;
+  }
+
+  beforeEach(() => {
+    endpoint = makeMockEndpoint();
+    log = makeLogger();
+  });
+
+  it('reports dry when Z-Wave sends idle (0) notification', () => {
+    createWaterLeakDetector(0);
     expect(endpoint.attributes['booleanState.stateValue']).toBe(false);
   });
 
-  it('detects water leak when notification value is non-zero', async () => {
-    const node = makeNode({
-      endpoints: [makeEndpoint([CommandClass.Notification])],
-      values: makeValues({
-        commandClass: CommandClass.Notification,
-        property: 'Water Alarm',
-        value: 0,
-        metadata: {
-          type: 'number',
-          readable: true,
-          writeable: false,
-          label: 'Sensor status',
-          ccSpecific: { notificationType: NotificationType.Water },
-        },
-      }),
-    });
-
-    const mapped = mapNode(node);
-    const handler = createHandler(mapped[0].deviceType, {
-      endpoint: endpoint as never,
-      node,
-      zwaveEndpointIndex: 0,
-      log,
-    });
-
-    handler.addClusters(endpoint as never);
-    handler.setup();
+  it('reports a leak when Z-Wave sends a non-zero water notification', async () => {
+    const handler = createWaterLeakDetector(0);
     endpoint.setAttribute.mockClear();
 
-    // Water leak detected (value 2)
     await handler.handleValueUpdate({
       commandClass: CommandClass.Notification,
-      commandClassName: 'Notification',
       endpoint: 0,
       property: 'Water Alarm',
       newValue: 2,
@@ -355,13 +281,14 @@ describe('WaterLeakHandler integration', () => {
     });
 
     expect(endpoint.setAttribute).toHaveBeenCalledWith('booleanState', 'stateValue', true, log);
+  });
 
+  it('reports dry again when the leak clears', async () => {
+    const handler = createWaterLeakDetector(0);
     endpoint.setAttribute.mockClear();
 
-    // Leak cleared (value 0)
     await handler.handleValueUpdate({
       commandClass: CommandClass.Notification,
-      commandClassName: 'Notification',
       endpoint: 0,
       property: 'Water Alarm',
       newValue: 0,

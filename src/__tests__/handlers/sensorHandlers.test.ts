@@ -16,101 +16,58 @@ import {
 } from '../helpers/testUtils.js';
 import type { AnsiLogger } from 'matterbridge/logger';
 
-describe('TemperatureSensorHandler integration', () => {
+describe('temperature sensor devices', () => {
   let endpoint: MockEndpoint;
   let log: AnsiLogger;
+
+  function createTempSensor(value: number, unit = '°C') {
+    const node = makeNode({
+      endpoints: [makeEndpoint([CommandClass.MultilevelSensor])],
+      values: makeValues({
+        commandClass: CommandClass.MultilevelSensor,
+        property: 'Air temperature',
+        value,
+        metadata: { type: 'number', readable: true, writeable: false, label: 'Air temperature', unit },
+      }),
+    });
+
+    const mapped = mapNode(node);
+    const tempDevice = mapped.find((d) => d.deviceType.name === 'temperatureSensor')!;
+    const handler = createHandler(tempDevice.deviceType, {
+      endpoint: endpoint as never,
+      node,
+      zwaveEndpointIndex: 0,
+      log,
+    });
+    handler.addClusters(endpoint as never);
+    handler.setup();
+    return handler;
+  }
 
   beforeEach(() => {
     endpoint = makeMockEndpoint();
     log = makeLogger();
   });
 
-  it('maps a temperature sensor node, sets initial state, and handles updates', async () => {
-    const node = makeNode({
-      endpoints: [makeEndpoint([CommandClass.MultilevelSensor])],
-      values: makeValues({
-        commandClass: CommandClass.MultilevelSensor,
-        property: 'Air temperature',
-        value: 22.5,
-        metadata: { type: 'number', readable: true, writeable: false, label: 'Air temperature', unit: '°C' },
-      }),
-    });
-
-    const mapped = mapNode(node);
-    const tempDevice = mapped.find((d) => d.deviceType.name === 'temperatureSensor');
-    expect(tempDevice).toBeDefined();
-
-    const handler = createHandler(tempDevice!.deviceType, {
-      endpoint: endpoint as never,
-      node,
-      zwaveEndpointIndex: 0,
-      log,
-    });
-
-    handler.addClusters(endpoint as never);
-    expect(endpoint.createDefaultTemperatureMeasurementClusterServer).toHaveBeenCalled();
-
-    handler.setup();
-    // 22.5°C → 2250 (in 0.01°C units)
+  it('reports the initial temperature in Matter centi-Celsius format', () => {
+    createTempSensor(22.5);
     expect(endpoint.attributes['temperatureMeasurement.measuredValue']).toBe(2250);
   });
 
-  it('converts Fahrenheit values to Matter format', async () => {
-    const node = makeNode({
-      endpoints: [makeEndpoint([CommandClass.MultilevelSensor])],
-      values: makeValues({
-        commandClass: CommandClass.MultilevelSensor,
-        property: 'Air temperature',
-        value: 72,
-        metadata: { type: 'number', readable: true, writeable: false, label: 'Air temperature', unit: '°F' },
-      }),
-    });
-
-    const mapped = mapNode(node);
-    const tempDevice = mapped.find((d) => d.deviceType.name === 'temperatureSensor');
-    const handler = createHandler(tempDevice!.deviceType, {
-      endpoint: endpoint as never,
-      node,
-      zwaveEndpointIndex: 0,
-      log,
-    });
-
-    handler.addClusters(endpoint as never);
-    handler.setup();
-
-    // 72°F ≈ 22.22°C → ~2222 in 0.01°C units
+  it('converts Fahrenheit readings to centi-Celsius', () => {
+    createTempSensor(72, '°F');
+    // 72°F ≈ 22.22°C → ~2222
     const value = endpoint.attributes['temperatureMeasurement.measuredValue'] as number;
     expect(value).toBeGreaterThan(2200);
     expect(value).toBeLessThan(2250);
   });
 
-  it('handles temperature value updates', async () => {
-    const node = makeNode({
-      endpoints: [makeEndpoint([CommandClass.MultilevelSensor])],
-      values: makeValues({
-        commandClass: CommandClass.MultilevelSensor,
-        property: 'Air temperature',
-        value: 20,
-        metadata: { type: 'number', readable: true, writeable: false, label: 'Air temperature', unit: '°C' },
-      }),
-    });
-
-    const mapped = mapNode(node);
-    const tempDevice = mapped.find((d) => d.deviceType.name === 'temperatureSensor');
-    const handler = createHandler(tempDevice!.deviceType, {
-      endpoint: endpoint as never,
-      node,
-      zwaveEndpointIndex: 0,
-      log,
-    });
-
-    handler.addClusters(endpoint as never);
-    handler.setup();
+  it('updates the temperature when a new reading arrives', async () => {
+    const handler = createTempSensor(20);
     endpoint.setAttribute.mockClear();
 
     await handler.handleValueUpdate({
       commandClass: CommandClass.MultilevelSensor,
-      commandClassName: 'Multilevel Sensor',
       endpoint: 0,
       property: 'Air temperature',
       propertyName: 'Air temperature',
@@ -121,33 +78,12 @@ describe('TemperatureSensorHandler integration', () => {
     expect(endpoint.setAttribute).toHaveBeenCalledWith('temperatureMeasurement', 'measuredValue', 2550, log);
   });
 
-  it('ignores updates for non-temperature sensor properties', async () => {
-    const node = makeNode({
-      endpoints: [makeEndpoint([CommandClass.MultilevelSensor])],
-      values: makeValues({
-        commandClass: CommandClass.MultilevelSensor,
-        property: 'Air temperature',
-        value: 20,
-        metadata: { type: 'number', readable: true, writeable: false, label: 'Air temperature', unit: '°C' },
-      }),
-    });
-
-    const mapped = mapNode(node);
-    const tempDevice = mapped.find((d) => d.deviceType.name === 'temperatureSensor');
-    const handler = createHandler(tempDevice!.deviceType, {
-      endpoint: endpoint as never,
-      node,
-      zwaveEndpointIndex: 0,
-      log,
-    });
-
-    handler.addClusters(endpoint as never);
-    handler.setup();
+  it('ignores humidity readings', async () => {
+    const handler = createTempSensor(20);
     endpoint.setAttribute.mockClear();
 
     await handler.handleValueUpdate({
       commandClass: CommandClass.MultilevelSensor,
-      commandClassName: 'Multilevel Sensor',
       endpoint: 0,
       property: 'Humidity',
       propertyName: 'Humidity',
@@ -159,49 +95,50 @@ describe('TemperatureSensorHandler integration', () => {
   });
 });
 
-describe('HumiditySensorHandler integration', () => {
+describe('humidity sensor devices', () => {
   let endpoint: MockEndpoint;
   let log: AnsiLogger;
+
+  function createHumiditySensor(value: number) {
+    const node = makeNode({
+      endpoints: [makeEndpoint([CommandClass.MultilevelSensor])],
+      values: makeValues({
+        commandClass: CommandClass.MultilevelSensor,
+        property: 'Humidity',
+        value,
+        metadata: { type: 'number', readable: true, writeable: false, label: 'Humidity', unit: '%' },
+      }),
+    });
+
+    const mapped = mapNode(node);
+    const humDevice = mapped.find((d) => d.deviceType.name === 'humiditySensor')!;
+    const handler = createHandler(humDevice.deviceType, {
+      endpoint: endpoint as never,
+      node,
+      zwaveEndpointIndex: 0,
+      log,
+    });
+    handler.addClusters(endpoint as never);
+    handler.setup();
+    return handler;
+  }
 
   beforeEach(() => {
     endpoint = makeMockEndpoint();
     log = makeLogger();
   });
 
-  it('maps a humidity sensor, sets initial state, and handles updates', async () => {
-    const node = makeNode({
-      endpoints: [makeEndpoint([CommandClass.MultilevelSensor])],
-      values: makeValues({
-        commandClass: CommandClass.MultilevelSensor,
-        property: 'Humidity',
-        value: 55,
-        metadata: { type: 'number', readable: true, writeable: false, label: 'Humidity', unit: '%' },
-      }),
-    });
-
-    const mapped = mapNode(node);
-    const humDevice = mapped.find((d) => d.deviceType.name === 'humiditySensor');
-    expect(humDevice).toBeDefined();
-
-    const handler = createHandler(humDevice!.deviceType, {
-      endpoint: endpoint as never,
-      node,
-      zwaveEndpointIndex: 0,
-      log,
-    });
-
-    handler.addClusters(endpoint as never);
-    expect(endpoint.createDefaultRelativeHumidityMeasurementClusterServer).toHaveBeenCalled();
-
-    handler.setup();
-    // 55% → 5500 (in 0.01% units)
+  it('reports the initial humidity in Matter centi-percent format', () => {
+    createHumiditySensor(55);
     expect(endpoint.attributes['relativeHumidityMeasurement.measuredValue']).toBe(5500);
+  });
 
+  it('updates the humidity when a new reading arrives', async () => {
+    const handler = createHumiditySensor(55);
     endpoint.setAttribute.mockClear();
 
     await handler.handleValueUpdate({
       commandClass: CommandClass.MultilevelSensor,
-      commandClassName: 'Multilevel Sensor',
       endpoint: 0,
       property: 'Humidity',
       propertyName: 'Humidity',
@@ -213,49 +150,51 @@ describe('HumiditySensorHandler integration', () => {
   });
 });
 
-describe('LightSensorHandler integration', () => {
+describe('light sensor devices', () => {
   let endpoint: MockEndpoint;
   let log: AnsiLogger;
+
+  function createLightSensor(value: number) {
+    const node = makeNode({
+      endpoints: [makeEndpoint([CommandClass.MultilevelSensor])],
+      values: makeValues({
+        commandClass: CommandClass.MultilevelSensor,
+        property: 'Illuminance',
+        value,
+        metadata: { type: 'number', readable: true, writeable: false, label: 'Illuminance', unit: 'Lux' },
+      }),
+    });
+
+    const mapped = mapNode(node);
+    const lightDevice = mapped.find((d) => d.deviceType.name === 'lightSensor')!;
+    const handler = createHandler(lightDevice.deviceType, {
+      endpoint: endpoint as never,
+      node,
+      zwaveEndpointIndex: 0,
+      log,
+    });
+    handler.addClusters(endpoint as never);
+    handler.setup();
+    return handler;
+  }
 
   beforeEach(() => {
     endpoint = makeMockEndpoint();
     log = makeLogger();
   });
 
-  it('maps an illuminance sensor, sets initial state, and handles updates', async () => {
-    const node = makeNode({
-      endpoints: [makeEndpoint([CommandClass.MultilevelSensor])],
-      values: makeValues({
-        commandClass: CommandClass.MultilevelSensor,
-        property: 'Illuminance',
-        value: 100,
-        metadata: { type: 'number', readable: true, writeable: false, label: 'Illuminance', unit: 'Lux' },
-      }),
-    });
-
-    const mapped = mapNode(node);
-    const lightDevice = mapped.find((d) => d.deviceType.name === 'lightSensor');
-    expect(lightDevice).toBeDefined();
-
-    const handler = createHandler(lightDevice!.deviceType, {
-      endpoint: endpoint as never,
-      node,
-      zwaveEndpointIndex: 0,
-      log,
-    });
-
-    handler.addClusters(endpoint as never);
-    expect(endpoint.createDefaultIlluminanceMeasurementClusterServer).toHaveBeenCalled();
-
-    handler.setup();
-    // 100 lux → 10000 * log10(100) + 1 = 10000 * 2 + 1 = 20001
+  it('reports the initial illuminance using logarithmic scaling', () => {
+    createLightSensor(100);
+    // 100 lux → 10000 * log10(100) + 1 = 20001
     expect(endpoint.attributes['illuminanceMeasurement.measuredValue']).toBe(20001);
+  });
 
+  it('reports zero for total darkness', async () => {
+    const handler = createLightSensor(100);
     endpoint.setAttribute.mockClear();
 
     await handler.handleValueUpdate({
       commandClass: CommandClass.MultilevelSensor,
-      commandClassName: 'Multilevel Sensor',
       endpoint: 0,
       property: 'Illuminance',
       propertyName: 'Illuminance',
@@ -263,38 +202,15 @@ describe('LightSensorHandler integration', () => {
       prevValue: 100,
     });
 
-    // 0 lux → 0
     expect(endpoint.setAttribute).toHaveBeenCalledWith('illuminanceMeasurement', 'measuredValue', 0, log);
   });
 
-  it('handles luminance property name variant', async () => {
-    const node = makeNode({
-      endpoints: [makeEndpoint([CommandClass.MultilevelSensor])],
-      values: makeValues({
-        commandClass: CommandClass.MultilevelSensor,
-        property: 'Illuminance',
-        value: 10,
-        metadata: { type: 'number', readable: true, writeable: false, label: 'Illuminance', unit: 'Lux' },
-      }),
-    });
-
-    const mapped = mapNode(node);
-    const lightDevice = mapped.find((d) => d.deviceType.name === 'lightSensor');
-    const handler = createHandler(lightDevice!.deviceType, {
-      endpoint: endpoint as never,
-      node,
-      zwaveEndpointIndex: 0,
-      log,
-    });
-
-    handler.addClusters(endpoint as never);
-    handler.setup();
+  it('responds to the "luminance" property name variant', async () => {
+    const handler = createLightSensor(10);
     endpoint.setAttribute.mockClear();
 
-    // "luminance" property variant should also be handled
     await handler.handleValueUpdate({
       commandClass: CommandClass.MultilevelSensor,
-      commandClassName: 'Multilevel Sensor',
       endpoint: 0,
       property: 'Luminance',
       propertyName: 'Luminance',
@@ -306,8 +222,8 @@ describe('LightSensorHandler integration', () => {
   });
 });
 
-describe('Multi-sensor node integration', () => {
-  it('maps a node with temperature, humidity, and illuminance to three devices', () => {
+describe('multi-sensor nodes', () => {
+  it('creates separate Matter devices for temperature, humidity, and illuminance', () => {
     const node = makeNode({
       endpoints: [makeEndpoint([CommandClass.MultilevelSensor])],
       values: {

@@ -106,7 +106,7 @@ async function connectWithHandshake(
   return ws;
 }
 
-describe('ZWaveClient', () => {
+describe('Z-Wave server client', () => {
   let client: InstanceType<typeof ZWaveClient>;
   let log: AnsiLogger;
 
@@ -119,19 +119,12 @@ describe('ZWaveClient', () => {
     await client.disconnect();
   });
 
-  it('initializes with empty nodes map', () => {
+  it('starts with no known nodes', () => {
     expect(client.nodes.size).toBe(0);
   });
 
-  it('emits disconnected on disconnect', async () => {
-    const disconnectedSpy = vi.fn();
-    client.on('disconnected', disconnectedSpy);
-    await client.disconnect();
-    expect(client.nodes.size).toBe(0);
-  });
-
-  describe('connection flow', () => {
-    it('sends start_listening after receiving version message and emits connected', async () => {
+  describe('connecting to the Z-Wave server', () => {
+    it('negotiates the start_listening handshake and signals connected', async () => {
       const connectedSpy = vi.fn();
       client.on('connected', connectedSpy);
 
@@ -142,7 +135,7 @@ describe('ZWaveClient', () => {
       expect(JSON.parse(ws.sent[0]).command).toBe('start_listening');
     });
 
-    it('populates nodes map from start_listening result', async () => {
+    it('discovers all nodes on the network after connecting', async () => {
       await connectWithHandshake(client, [
         { nodeId: 1, status: 4, ready: true, endpoints: [], values: {} },
         { nodeId: 2, status: 4, ready: true, endpoints: [], values: {} },
@@ -153,7 +146,7 @@ describe('ZWaveClient', () => {
       expect(client.nodes.has(2)).toBe(true);
     });
 
-    it('emits allNodesReady with the nodes map', async () => {
+    it('notifies when all nodes are ready', async () => {
       const allNodesReadySpy = vi.fn();
       client.on('allNodesReady', allNodesReadySpy);
 
@@ -163,13 +156,12 @@ describe('ZWaveClient', () => {
     });
   });
 
-  describe('setValue', () => {
-    it('sends a set_value command and resolves on success', async () => {
+  describe('sending commands to Z-Wave devices', () => {
+    it('sends a set_value command and resolves when the server acknowledges', async () => {
       const ws = await connectWithHandshake(client);
 
       const setValuePromise = client.setValue(2, { commandClass: 0x25, endpoint: 0, property: 'targetValue' }, true);
 
-      // Find the setValue message (second message after start_listening)
       expect(ws.sent.length).toBe(2);
       const setValueMsg = JSON.parse(ws.sent[1]);
       expect(setValueMsg.command).toBe('node.set_value');
@@ -177,7 +169,6 @@ describe('ZWaveClient', () => {
       expect(setValueMsg.valueId.commandClass).toBe(0x25);
       expect(setValueMsg.value).toBe(true);
 
-      // Server responds with success
       serverSend(ws, {
         type: 'result',
         messageId: setValueMsg.messageId,
@@ -188,7 +179,7 @@ describe('ZWaveClient', () => {
       await setValuePromise;
     });
 
-    it('rejects when server responds with failure', async () => {
+    it('rejects when the server reports a failure', async () => {
       const ws = await connectWithHandshake(client);
 
       const setValuePromise = client.setValue(2, { commandClass: 0x25, endpoint: 0, property: 'targetValue' }, true);
@@ -206,8 +197,8 @@ describe('ZWaveClient', () => {
     });
   });
 
-  describe('event handling', () => {
-    it('emits valueUpdated and updates node cache on value updated event', async () => {
+  describe('receiving Z-Wave events', () => {
+    it('reports value changes and updates its node cache', async () => {
       const ws = await connectWithHandshake(client, [
         {
           nodeId: 2,
@@ -254,44 +245,11 @@ describe('ZWaveClient', () => {
         }),
       );
 
-      // Node cache should be updated
       const node = client.nodes.get(2)!;
       expect(node.values['37-0-currentValue'].value).toBe(true);
     });
 
-    it('emits nodeRemoved and cleans up nodes map', async () => {
-      const ws = await connectWithHandshake(client, [{ nodeId: 2, status: 4, ready: true, endpoints: [], values: {} }]);
-
-      const nodeRemovedSpy = vi.fn();
-      client.on('nodeRemoved', nodeRemovedSpy);
-
-      serverSend(ws, {
-        type: 'event',
-        event: { source: 'node', event: 'node removed', nodeId: 2 },
-      });
-
-      expect(nodeRemovedSpy).toHaveBeenCalledWith(2);
-      expect(client.nodes.has(2)).toBe(false);
-    });
-
-    it('emits nodeReady and sets ready flag', async () => {
-      const ws = await connectWithHandshake(client, [
-        { nodeId: 2, status: 4, ready: false, endpoints: [], values: {} },
-      ]);
-
-      const nodeReadySpy = vi.fn();
-      client.on('nodeReady', nodeReadySpy);
-
-      serverSend(ws, {
-        type: 'event',
-        event: { source: 'node', event: 'ready', nodeId: 2 },
-      });
-
-      expect(nodeReadySpy).toHaveBeenCalled();
-      expect(client.nodes.get(2)!.ready).toBe(true);
-    });
-
-    it('creates new value entry when value updated event has unknown key', async () => {
+    it('tracks newly reported values that were not in the initial discovery', async () => {
       const ws = await connectWithHandshake(client, [{ nodeId: 2, status: 4, ready: true, endpoints: [], values: {} }]);
 
       serverSend(ws, {
@@ -317,16 +275,46 @@ describe('ZWaveClient', () => {
       expect(newValue.value).toBe(22.5);
       expect(newValue.commandClass).toBe(0x31);
     });
+
+    it('reports when a node is removed and cleans up its cache', async () => {
+      const ws = await connectWithHandshake(client, [{ nodeId: 2, status: 4, ready: true, endpoints: [], values: {} }]);
+
+      const nodeRemovedSpy = vi.fn();
+      client.on('nodeRemoved', nodeRemovedSpy);
+
+      serverSend(ws, {
+        type: 'event',
+        event: { source: 'node', event: 'node removed', nodeId: 2 },
+      });
+
+      expect(nodeRemovedSpy).toHaveBeenCalledWith(2);
+      expect(client.nodes.has(2)).toBe(false);
+    });
+
+    it('reports when a node becomes ready', async () => {
+      const ws = await connectWithHandshake(client, [
+        { nodeId: 2, status: 4, ready: false, endpoints: [], values: {} },
+      ]);
+
+      const nodeReadySpy = vi.fn();
+      client.on('nodeReady', nodeReadySpy);
+
+      serverSend(ws, {
+        type: 'event',
+        event: { source: 'node', event: 'ready', nodeId: 2 },
+      });
+
+      expect(nodeReadySpy).toHaveBeenCalled();
+      expect(client.nodes.get(2)!.ready).toBe(true);
+    });
   });
 
-  describe('reconnection', () => {
-    it('schedules reconnect on unexpected WebSocket close', async () => {
+  describe('reconnection behavior', () => {
+    it('schedules a reconnect when the connection drops unexpectedly', async () => {
       const ws = await connectWithHandshake(client);
 
-      // Simulate unexpected close
       ws.emit('close');
 
-      // Should log reconnection info
       expect(
         (log.info as ReturnType<typeof vi.fn>).mock.calls.some((call: unknown[]) =>
           String(call[0]).includes('Reconnecting in'),
@@ -334,15 +322,13 @@ describe('ZWaveClient', () => {
       ).toBe(true);
     });
 
-    it('does not reconnect after explicit disconnect', async () => {
+    it('does not reconnect after an explicit disconnect', async () => {
       await connectWithHandshake(client);
 
-      // Clear log calls from connection
       (log.info as ReturnType<typeof vi.fn>).mockClear();
 
       await client.disconnect();
 
-      // After disconnect, no reconnect should be logged
       expect(
         (log.info as ReturnType<typeof vi.fn>).mock.calls.some((call: unknown[]) =>
           String(call[0]).includes('Reconnecting'),
@@ -351,16 +337,14 @@ describe('ZWaveClient', () => {
     });
   });
 
-  describe('disconnect cleanup', () => {
-    it('rejects pending requests on disconnect', async () => {
+  describe('disconnecting', () => {
+    it('rejects any pending commands', async () => {
       const ws = await connectWithHandshake(client);
 
-      // Start a command that won't get a response
       const pendingPromise = client.setValue(2, { commandClass: 0x25, endpoint: 0, property: 'targetValue' }, true);
 
       expect(ws.sent.length).toBe(2);
 
-      // Disconnect while command is pending
       await client.disconnect();
 
       await expect(pendingPromise).rejects.toThrow('Client disconnecting');
