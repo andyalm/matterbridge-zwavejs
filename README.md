@@ -8,7 +8,7 @@
 
 A [Matterbridge](https://github.com/Luligu/matterbridge) plugin that exposes Z-Wave devices as Matter devices via [Z-Wave JS Server](https://github.com/zwave-js/zwave-js-server).
 
-This allows Z-Wave devices to be controlled through Matter-compatible ecosystems (Apple Home, Google Home, Amazon Alexa) without requiring a full home automation platform.
+This allows Z-Wave devices to be controlled through Matter-compatible ecosystems (Apple Home, Google Home, Amazon Alexa) with free and open source software.
 
 ## Features
 
