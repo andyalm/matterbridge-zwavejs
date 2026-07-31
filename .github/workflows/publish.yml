@@ -43,4 +43,10 @@ jobs:
         run: npm test
 
       - name: Publish
-        run: npm publish --provenance
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$VERSION" == *-* ]]; then
+            npm publish --provenance --tag dev
+          else
+            npm publish --provenance
+          fi

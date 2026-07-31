@@ -1,8 +1,8 @@
 import type { DeviceTypeDefinition } from 'matterbridge';
 import {
   onOffLight,
-  onOffOutlet,
-  onOffSwitch,
+  onOffPlugInUnit,
+  onOffLightSwitch,
   dimmableLight,
   contactSensor,
   occupancySensor,
@@ -196,7 +196,7 @@ function classifyBinarySwitch(node: ZWaveNode): { deviceType: DeviceTypeDefiniti
     return { deviceType: onOffLight, label: 'Light' };
   }
   if (specificLabel.includes('power strip') || specificLabel.includes('siren') || specificLabel.includes('valve')) {
-    return { deviceType: onOffOutlet, label: 'Outlet' };
+    return { deviceType: onOffPlugInUnit, label: 'Outlet' };
   }
 
   // Phase 2: Device config label/description heuristics
@@ -210,7 +210,7 @@ function classifyBinarySwitch(node: ZWaveNode): { deviceType: DeviceTypeDefiniti
     combined.includes('receptacle') ||
     combined.includes('strip')
   ) {
-    return { deviceType: onOffOutlet, label: 'Outlet' };
+    return { deviceType: onOffPlugInUnit, label: 'Outlet' };
   }
   if (
     combined.includes('light') ||
@@ -221,5 +221,5 @@ function classifyBinarySwitch(node: ZWaveNode): { deviceType: DeviceTypeDefiniti
     return { deviceType: onOffLight, label: 'Light' };
   }
 
-  return { deviceType: onOffSwitch, label: 'Switch' };
+  return { deviceType: onOffLightSwitch, label: 'Switch' };
 }

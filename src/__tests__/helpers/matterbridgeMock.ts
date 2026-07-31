@@ -8,8 +8,8 @@ import { vi } from 'vitest';
 
 // Device type definitions — simple objects with a name property
 export const onOffLight = { name: 'onOffLight', code: 0x0100 };
-export const onOffOutlet = { name: 'onOffOutlet', code: 0x010a };
-export const onOffSwitch = { name: 'onOffSwitch', code: 0x010b };
+export const onOffPlugInUnit = { name: 'onOffPlugInUnit', code: 0x010a };
+export const onOffLightSwitch = { name: 'onOffLightSwitch', code: 0x0103 };
 export const dimmableLight = { name: 'dimmableLight', code: 0x0101 };
 export const temperatureSensor = { name: 'temperatureSensor', code: 0x0302 };
 export const humiditySensor = { name: 'humiditySensor', code: 0x0307 };
