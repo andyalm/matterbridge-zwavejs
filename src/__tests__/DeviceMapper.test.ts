@@ -5,8 +5,8 @@ vi.mock('matterbridge/logger', () => ({}));
 
 import {
   onOffLight,
-  onOffOutlet,
-  onOffSwitch,
+  onOffPlugInUnit,
+  onOffLightSwitch,
   dimmableLight,
   contactSensor,
   occupancySensor,
@@ -27,7 +27,7 @@ describe('device type classification', () => {
       });
       const devices = mapNode(node);
       expect(devices).toHaveLength(1);
-      expect(devices[0].deviceType).toBe(onOffSwitch);
+      expect(devices[0].deviceType).toBe(onOffLightSwitch);
     });
 
     it('identifies a light based on the device label', () => {
@@ -47,7 +47,7 @@ describe('device type classification', () => {
       });
       const devices = mapNode(node);
       expect(devices).toHaveLength(1);
-      expect(devices[0].deviceType).toBe(onOffSwitch);
+      expect(devices[0].deviceType).toBe(onOffLightSwitch);
     });
 
     it('identifies a smart plug as an outlet', () => {
@@ -57,7 +57,7 @@ describe('device type classification', () => {
       });
       const devices = mapNode(node);
       expect(devices).toHaveLength(1);
-      expect(devices[0].deviceType).toBe(onOffOutlet);
+      expect(devices[0].deviceType).toBe(onOffPlugInUnit);
     });
 
     it('identifies a color light from the Z-Wave device class', () => {
@@ -85,7 +85,7 @@ describe('device type classification', () => {
       });
       const devices = mapNode(node);
       expect(devices).toHaveLength(1);
-      expect(devices[0].deviceType).toBe(onOffOutlet);
+      expect(devices[0].deviceType).toBe(onOffPlugInUnit);
     });
   });
 

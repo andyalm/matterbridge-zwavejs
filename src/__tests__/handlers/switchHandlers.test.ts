@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('matterbridge', () => import('../helpers/matterbridgeMock.js'));
 vi.mock('matterbridge/logger', () => ({}));
 
-import { onOffSwitch, dimmableLight } from 'matterbridge';
+import { onOffLightSwitch, dimmableLight } from 'matterbridge';
 import { CommandClass } from '../../zwave/types.js';
 import { createHandler } from '../../handlers/handlerRegistry.js';
 import {
@@ -33,7 +33,7 @@ describe('binary switch devices', () => {
       }),
     });
 
-    const handler = createHandler(onOffSwitch, {
+    const handler = createHandler(onOffLightSwitch, {
       endpoint: endpoint as never,
       node,
       zwaveEndpointIndex: 0,
